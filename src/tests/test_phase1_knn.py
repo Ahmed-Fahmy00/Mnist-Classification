@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.pipelines.phase1_knn import (
+from src.features.mnist_features import (
     normalize_pixels,
     select_binary_classes,
     split_data,
@@ -31,7 +31,7 @@ def test_split_data_returns_expected_sizes():
     y = np.array([0] * 50 + [1] * 50)
 
     x_train, x_val, x_test, y_train, y_val, y_test = split_data(
-        x, y, test_size=0.2, val_size=0.2
+        x, y, test_size=0.2, val_size=0.2, random_state=42
     )
 
     assert x_test.shape[0] == 20

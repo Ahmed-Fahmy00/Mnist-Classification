@@ -23,11 +23,10 @@ This repository contains the MNIST classification project for CAIE CSE382 Spring
 
 - MNIST exploration notebooks
 - Feature preparation notebooks
-- Phase 1 KNN pipeline split into reusable modules
+- Phase 1 KNN pipeline centered on a single notebook workflow
 - Clear separation of concerns:
   - feature engineering in [src/features](src/features)
   - model-only logic in [src/models](src/models)
-  - evaluation/output logic in [src/evaluation](src/evaluation)
   - plotting/analysis in [src/analysis](src/analysis)
 - `.env` support for seed, class selection, split ratios, and feature settings
 - Saved experiment outputs including metrics, confusion matrices, validation tuning tables, and KNN summary files
@@ -44,7 +43,6 @@ This repository contains the MNIST classification project for CAIE CSE382 Spring
 - [src/models/knn_model.py](src/models/knn_model.py): KNN training/tuning and feature-mode experiment execution
 - [src/tests/knn_evaluation.py](src/tests/knn_evaluation.py): test metrics + artifact saving (`validation_tuning.csv`, `metrics.json`, `confusion_matrix.csv`)
 - [src/analysis/knn_analysis.py](src/analysis/knn_analysis.py): tuning-curve and confusion-matrix plotting helpers
-- [src/pipelines/phase1_knn.py](src/pipelines/phase1_knn.py): compatibility wrappers for existing imports and tests
 
 ## Environment File
 
