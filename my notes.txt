@@ -1,0 +1,59 @@
+Image Classification 
+Datasets: MNIST. 
+
+#ALL Models Implement at least three algorithms such as: 
+-Logistic/Multinomial Regression  Hady 
+-K-Nearest Neighbors (KNN) 
+-Naïve Bayes 
+-Decision Trees 
+-Linear Support Vector Machines 
+-Kernel Support Vector Machines 
+
+
+####Phase 1: Binary Classification (2 Classes)  0 or 1
+
+at least three different machine learning algorithm
+
+#Required Tasks 
+Problem Definition 
+Data Processing 
+Loss Function & Optimization 
+Evaluation 
+
+#Phase 1 Deliverables 
+• Clean code 
+• Technical report (5–7 pages) 
+• Mathematical formulation 
+• Experimental results table 
+• Model comparison discussion
+
+
+
+
+####Phase 2: Multi classification (10 classes) 0 to 9
+
+#Required Improvements (Choose at least three) 
+• Feature engineering: Use pretrained CNN Feature Extraction as input to classical ML 
+classifiers 
+• Hyperparameter tuning with cross-validation 
+• Regularization (L1/L2) and bias–variance analysis 
+• Ensemble methods (Random Forest, Boosting) 
+• Overfitting/Underfitting diagnosis and learning curves 
+• Optional: Simple deployment interface 
+
+
+
+
+
+
+##Final Deliverables 
+• Complete technical report (10–15 pages) 
+• Clean, commented code 
+• Presentation (10–15 minutes) 
+• Demonstration of results 
+
+
+
+
+Minmax Scaling (Normalization)
+Standard Scaling (Standardization)
