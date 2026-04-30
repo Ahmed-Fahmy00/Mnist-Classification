@@ -1,239 +1,209 @@
-from time import perf_counter
-from typing import Dict, List, Optional, Tuple
-
 import numpy as np
-import pandas as pd
+from collections import Counter
 
-from src.features.mnist_features import build_features
-from src.tests.evaluations import (
-	accuracy_from_confusion,
-	confusion_matrix_from_predictions,
-	evaluate_model as evaluate_generic_model,
-	macro_precision_recall_f1,
-)
+class KNNClassifier:
+    def __init__(self, k=5):
+        """
+        Initialize the K-Nearest Neighbors classifier.
+        
+        Args:
+            k (int): Number of neighbors to use.
+        """
+        self.k = k
+        self.X_train = None
+        self.y_train = None
+        self.classes_ = None
 
-class CustomKNNClassifier:
-	"""Simple NumPy KNN classifier (uniform voting, Euclidean distance)."""
+    def train(self, X_train, y_train):
+        """
+        Train the KNN model (store the training data).
+        
+        Args:
+            X_train (np.ndarray): Training data features.
+            y_train (np.ndarray): Training data labels.
+        """
+        self.X_train = X_train
+        self.y_train = y_train
+        self.classes_ = np.unique(y_train)
 
-	def __init__(self, n_neighbors: int = 5):
-		self.n_neighbors = int(n_neighbors)
-		self.x_train: Optional[np.ndarray] = None
-		self.y_train: Optional[np.ndarray] = None
-		self.classes_: Optional[np.ndarray] = None
-		self.classes: Optional[np.ndarray] = None
+    def compute_distances(self, X):
+        """
+        Compute the Euclidean distance between test data and training data.
+        Uses vectorized operations for efficiency: (X - Y)^2 = X^2 + Y^2 - 2XY
+        
+        Args:
+            X (np.ndarray): Test data features.
+            
+        Returns:
+            np.ndarray: Matrix of distances of shape (num_test, num_train)
+        """
+        # X shape: (num_test, num_features)
+        # self.X_train shape: (num_train, num_features)
+        
+        dists = -2 * np.dot(X, self.X_train.T)
+        dists += np.sum(X**2, axis=1)[:, np.newaxis]
+        dists += np.sum(self.X_train**2, axis=1)[np.newaxis, :]
+        
+        # Ensure no negative values due to floating point inaccuracies
+        dists = np.maximum(dists, 0)
+        return np.sqrt(dists)
+
+    def predict(self, X, batch_size=500):
+        """
+        Predict the class labels for the provided data using batching to save RAM.
+        
+        Args:
+            X (np.ndarray): Test data features.
+            batch_size (int): Number of samples to process at a time.
+            
+        Returns:
+            np.ndarray: Predicted class labels.
+        """
+        num_test = X.shape[0]
+        y_pred = np.zeros(num_test, dtype=self.y_train.dtype)
+        
+        for start_idx in range(0, num_test, batch_size):
+            end_idx = min(start_idx + batch_size, num_test)
+            X_batch = X[start_idx:end_idx]
+            
+            # Compute distances for this batch only
+            dists_batch = self.compute_distances(X_batch)
+            
+            for i in range(end_idx - start_idx):
+                # Find indices of the k nearest neighbors. 
+                if self.k < len(dists_batch[i]):
+                    closest_y_indices = np.argpartition(dists_batch[i], self.k)[:self.k]
+                else:
+                    closest_y_indices = np.argsort(dists_batch[i])[:self.k]
+                
+                # Get the labels of the k nearest neighbors
+                closest_y = self.y_train[closest_y_indices]
+                
+                # Find the most common label
+                most_common = Counter(closest_y).most_common(1)
+                y_pred[start_idx + i] = most_common[0][0]
+                
+        return y_pred
+
+    def predict_proba(self, X, batch_size=500):
+        """
+        Predict class probabilities for the provided data.
+        
+        Args:
+            X (np.ndarray): Test data features.
+            batch_size (int): Number of samples to process at a time.
+            
+        Returns:
+            np.ndarray: Probabilities of shape (num_test, num_classes).
+        """
+        if self.classes_ is None:
+            raise RuntimeError("Model must be trained before predicting.")
+            
+        num_test = X.shape[0]
+        num_classes = len(self.classes_)
+        probas = np.zeros((num_test, num_classes), dtype=float)
+        
+        # Create a mapping from class label to index
+        label_to_idx = {label: i for i, label in enumerate(self.classes_)}
+        
+        for start_idx in range(0, num_test, batch_size):
+            end_idx = min(start_idx + batch_size, num_test)
+            X_batch = X[start_idx:end_idx]
+            
+            dists_batch = self.compute_distances(X_batch)
+            
+            for i in range(end_idx - start_idx):
+                if self.k < len(dists_batch[i]):
+                    closest_y_indices = np.argpartition(dists_batch[i], self.k)[:self.k]
+                else:
+                    closest_y_indices = np.argsort(dists_batch[i])[:self.k]
+                
+                closest_y = self.y_train[closest_y_indices]
+                
+                # Count frequencies of each class among the k neighbors
+                counts = Counter(closest_y)
+                for label, count in counts.items():
+                    if label in label_to_idx:
+                        idx = label_to_idx[label]
+                        probas[start_idx + i, idx] = count / self.k
+                        
+        return probas
 
 
-	def fit(self, x_train: np.ndarray, y_train: np.ndarray) -> "CustomKNNClassifier":
-		self.x_train = np.asarray(x_train, dtype=np.float32)
-		self.y_train = np.asarray(y_train)
-		self.classes_ = np.unique(self.y_train)
-		self.classes = self.classes_
+class BaggedKNNClassifier:
+    def __init__(self, n_estimators=5, k=5, max_samples=0.8, random_state=42):
+        """
+        Initialize the Bagged KNN classifier (Ensemble method).
+        
+        Args:
+            n_estimators (int): Number of KNN models in the ensemble.
+            k (int): Number of neighbors to use for each base KNN model.
+            max_samples (float): The fraction of training data to use for each base model.
+            random_state (int): Seed for reproducibility.
+        """
+        self.n_estimators = n_estimators
+        self.k = k
+        self.max_samples = max_samples
+        self.random_state = random_state
+        self.models = []
 
-		if self.x_train.ndim != 2:
-			raise ValueError("x_train must be a 2D array")
-		if self.y_train.ndim != 1:
-			raise ValueError("y_train must be a 1D array")
-		if self.x_train.shape[0] != self.y_train.shape[0]:
-			raise ValueError("x_train and y_train must contain the same number of samples")
-		if self.n_neighbors > self.x_train.shape[0]:
-			raise ValueError("n_neighbors cannot exceed number of training samples")
+    def train(self, X_train, y_train):
+        """
+        Train the ensemble by giving each KNN model a random subset of the training data.
+        """
+        self.classes_ = np.unique(y_train)
+        self.models = []
+        n_samples = int(len(X_train) * self.max_samples)
+        rng = np.random.default_rng(self.random_state)
+        
+        for _ in range(self.n_estimators):
+            # Bootstrap sampling (with replacement)
+            indices = rng.choice(len(X_train), size=n_samples, replace=True)
+            X_subset = X_train[indices]
+            y_subset = y_train[indices]
+            
+            # Train a new KNN model on this subset
+            model = KNNClassifier(k=self.k)
+            model.train(X_subset, y_subset)
+            self.models.append(model)
 
-		return self
+    def predict(self, X, batch_size=500):
+        """
+        Predict the class labels by majority vote across all models in the ensemble.
+        """
+        num_test = X.shape[0]
+        # Collect predictions from all models
+        all_preds = np.zeros((self.n_estimators, num_test), dtype=int)
+        
+        for idx, model in enumerate(self.models):
+            print(f"  Bagged Model {idx+1}/{self.n_estimators} predicting...")
+            all_preds[idx] = model.predict(X, batch_size=batch_size)
+            
+        # Majority voting
+        y_pred = np.zeros(num_test, dtype=int)
+        for i in range(num_test):
+            votes = all_preds[:, i]
+            most_common = Counter(votes).most_common(1)
+            y_pred[i] = most_common[0][0]
+            
+        return y_pred
 
-	def _pairwise_distances(self, x_batch: np.ndarray) -> np.ndarray:
-		if self.x_train is None:
-			raise RuntimeError("Model must be fitted before prediction")
-
-		x_batch = np.asarray(x_batch, dtype=np.float32)
-		if x_batch.ndim != 2:
-			raise ValueError("x_batch must be a 2D array")
-		if x_batch.shape[1] != self.x_train.shape[1]:
-			raise ValueError("x_batch feature count must match training feature count")
-
-		batch_sq = np.sum(x_batch * x_batch, axis=1, keepdims=True)
-		train_sq = np.sum(self.x_train * self.x_train, axis=1)[None, :]
-		d2 = batch_sq + train_sq - 2.0 * (x_batch @ self.x_train.T)
-		d2 = np.maximum(d2, 0.0)
-		return np.sqrt(d2)
-
-	def _vote_counts(self, neighbor_labels: np.ndarray) -> np.ndarray:
-		if self.classes_ is None:
-			raise RuntimeError("Model must be fitted before prediction")
-
-		counts = np.zeros((neighbor_labels.shape[0], self.classes_.shape[0]), dtype=np.int32)
-		for i in range(neighbor_labels.shape[0]):
-			for j, cls in enumerate(self.classes_):
-				counts[i, j] = int(np.sum(neighbor_labels[i] == cls))
-		return counts
-
-	def predict(self, x: np.ndarray, batch_size: int = 256) -> np.ndarray:
-		if self.y_train is None or self.classes_ is None:
-			raise RuntimeError("Model must be fitted before prediction")
-		if batch_size < 1:
-			raise ValueError("batch_size must be >= 1")
-
-		x = np.asarray(x, dtype=np.float32)
-		if x.ndim != 2:
-			raise ValueError("x must be a 2D array")
-
-		preds = []
-		for start in range(0, x.shape[0], batch_size):
-			batch = x[start : start + batch_size]
-			dists = self._pairwise_distances(batch)
-			nn_idx = np.argpartition(dists, kth=self.n_neighbors - 1, axis=1)[:, : self.n_neighbors]
-			neighbor_labels = self.y_train[nn_idx]
-			counts = self._vote_counts(neighbor_labels)
-			pred_idx = np.argmax(counts, axis=1)
-			preds.append(self.classes_[pred_idx])
-
-		return np.concatenate(preds, axis=0)
-
-	def predict_proba(self, x: np.ndarray, batch_size: int = 256) -> np.ndarray:
-		if self.y_train is None or self.classes_ is None:
-			raise RuntimeError("Model must be fitted before prediction")
-		if batch_size < 1:
-			raise ValueError("batch_size must be >= 1")
-
-		x = np.asarray(x, dtype=np.float32)
-		if x.ndim != 2:
-			raise ValueError("x must be a 2D array")
-
-		probas = []
-		for start in range(0, x.shape[0], batch_size):
-			batch = x[start : start + batch_size]
-			dists = self._pairwise_distances(batch)
-			nn_idx = np.argpartition(dists, kth=self.n_neighbors - 1, axis=1)[:, : self.n_neighbors]
-			neighbor_labels = self.y_train[nn_idx]
-			counts = self._vote_counts(neighbor_labels).astype(np.float32)
-			probas.append(counts / float(self.n_neighbors))
-
-		return np.concatenate(probas, axis=0)
-
-def tune_k(
-	x_train: np.ndarray,
-	y_train: np.ndarray,
-	x_val: np.ndarray,
-	y_val: np.ndarray,
-	k_values: List[int],
-) -> Tuple[int, pd.DataFrame]:
-	"""Select best k based on validation macro-F1 (ties: accuracy then smaller k)."""
-	if len(k_values) == 0:
-		raise ValueError("k_values must not be empty")
-
-	records = []
-	labels = [int(v) for v in np.unique(np.concatenate([y_train, y_val]))]
-
-	for k in k_values:
-		model = CustomKNNClassifier(n_neighbors=int(k))
-		model.fit(x_train, y_train)
-		val_pred = model.predict(x_val)
-
-		cm = confusion_matrix_from_predictions(y_val, val_pred, labels=labels)
-		precision, recall, f1 = macro_precision_recall_f1(cm)
-		accuracy = accuracy_from_confusion(cm)
-
-		records.append(
-			{
-				"k": int(k),
-				"val_accuracy": float(accuracy),
-				"val_precision_macro": float(precision),
-				"val_recall_macro": float(recall),
-				"val_f1_macro": float(f1),
-			}
-		)
-
-	table = pd.DataFrame(records).sort_values(
-		by=["val_f1_macro", "val_accuracy", "k"], ascending=[False, False, True]
-	)
-	best_k = int(table.iloc[0]["k"])
-	return best_k, table
-
-def evaluate_model(
-	model: CustomKNNClassifier,
-	x_test: np.ndarray,
-	y_test: np.ndarray,
-	labels: List[int],
-) -> Dict[str, object]:
-	"""Evaluate KNN and return KNN-focused key names for notebook reporting."""
-	metrics = evaluate_generic_model(
-		model=model,
-		x_test=x_test,
-		y_test=y_test,
-		labels=labels,
-		pos_label=labels[1] if len(labels) == 2 else None,
-		include_prob_metrics=False,
-	)
-
-	return {
-		"test_accuracy": float(metrics["accuracy"]),
-		"test_precision_macro": float(metrics["precision_macro"]),
-		"test_recall_macro": float(metrics["recall_macro"]),
-		"test_f1_macro": float(metrics["f1_macro"]),
-		"confusion_matrix": metrics["confusion_matrix"],
-	}
-
-def run_single_feature_experiment(
-	feature_mode: str,
-	x_train: np.ndarray,
-	x_val: np.ndarray,
-	x_test: np.ndarray,
-	y_train: np.ndarray,
-	y_val: np.ndarray,
-	y_test: np.ndarray,
-	class_a: int,
-	class_b: int,
-	k_values: List[int],
-	pca_components: float,
-	random_state: int,
-	include_timing: bool = False,
-) -> Dict[str, object]:
-	"""Run one KNN experiment for one feature mode and return in-memory outputs only."""
-	t0 = perf_counter()
-	feat_train, feat_val, feat_test = build_features(
-		mode=feature_mode,
-		x_train=x_train,
-		x_val=x_val,
-		x_test=x_test,
-		pca_components=pca_components,
-		random_state=random_state,
-	)
-	t_features = perf_counter()
-
-	best_k, tuning_table = tune_k(
-		x_train=feat_train,
-		y_train=y_train,
-		x_val=feat_val,
-		y_val=y_val,
-		k_values=k_values,
-	)
-	t_tune = perf_counter()
-
-	model = CustomKNNClassifier(n_neighbors=best_k)
-	model.fit(feat_train, y_train)
-	metrics = evaluate_model(model, feat_test, y_test, labels=[class_a, class_b])
-	t_eval = perf_counter()
-
-	result: Dict[str, object] = {
-		"feature_mode": feature_mode,
-		"pca_components": float(pca_components),
-		"random_state": int(random_state),
-		"best_k": int(best_k),
-		"class_a": int(class_a),
-		"class_b": int(class_b),
-		"train_samples": int(len(y_train)),
-		"val_samples": int(len(y_val)),
-		"test_samples": int(len(y_test)),
-		**metrics,
-		"tuning_table": tuning_table,
-	}
-
-	if include_timing:
-		result["timing_seconds"] = {
-			"feature_build": float(t_features - t0),
-			"tuning": float(t_tune - t_features),
-			"fit_eval": float(t_eval - t_tune),
-			"total": float(t_eval - t0),
-		}
-
-	return result
-
+    def predict_proba(self, X, batch_size=500):
+        """
+        Predict class probabilities by averaging probabilities across all models.
+        """
+        if not hasattr(self, 'classes_') or self.classes_ is None:
+            raise RuntimeError("Model must be trained before predicting.")
+            
+        num_test = X.shape[0]
+        num_classes = len(self.classes_)
+        
+        # Accumulate probabilities
+        avg_probas = np.zeros((num_test, num_classes), dtype=float)
+        
+        for idx, model in enumerate(self.models):
+            print(f"  Bagged Model {idx+1}/{self.n_estimators} calculating probabilities...")
+            avg_probas += model.predict_proba(X, batch_size=batch_size)
+            
+        avg_probas /= self.n_estimators
+        return avg_probas

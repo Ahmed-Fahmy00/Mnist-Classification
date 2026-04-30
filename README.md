@@ -70,15 +70,6 @@ Create a `.env` file in the project root from [\.env.example](.env.example). Sup
 5. Run the Phase 1 notebook pipeline:
    - [src/pipelines/phase1_knn_pipeline.ipynb](src/pipelines/phase1_knn_pipeline.ipynb)
 
-## Phase 1 Outputs
-
-The KNN-focused pipeline writes results to the folder configured in `OUTPUT_DIR` (for example [reports/phase1_knn_visual](reports/phase1_knn_visual)).
-
-- `summary_knn.csv`
-- `best_knn.json`
-- `run_info.json`
-- per-feature folders (`flatten/`, `pca/`, and `hog/`) with tuning and confusion matrix files
-
 ## Recommended Next Tasks
 
 1. Add Logistic Regression as a second model.

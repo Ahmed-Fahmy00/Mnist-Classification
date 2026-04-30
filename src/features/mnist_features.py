@@ -65,29 +65,50 @@ def normalize_data(x):
 
 def balance_binary_classes(x, y, method='undersample', random_state=42):
     """Balance binary classes by random under/over sampling on the provided split."""
-    labels, counts = np.unique(y, return_counts=True)
-    if labels.shape[0] != 2:
-        raise ValueError("balance_binary_classes expects exactly 2 classes")
+    labels = np.unique(y)
 
-    if method not in {'undersample', 'oversample'}:
+    if len(labels) != 2:
+        raise ValueError("Expected exactly 2 classes")
+    if method not in ['undersample', 'oversample']:
         raise ValueError("method must be 'undersample' or 'oversample'")
-
+    
     idx_a = np.where(y == labels[0])[0]
     idx_b = np.where(y == labels[1])[0]
     rng = np.random.default_rng(random_state)
 
     if method == 'undersample':
-        target = min(len(idx_a), len(idx_b))
-        idx_a = rng.choice(idx_a, size=target, replace=False)
-        idx_b = rng.choice(idx_b, size=target, replace=False)
-    else:
-        target = max(len(idx_a), len(idx_b))
-        idx_a = rng.choice(idx_a, size=target, replace=True)
-        idx_b = rng.choice(idx_b, size=target, replace=True)
+        target_size = min(len(idx_a), len(idx_b))
+        replace = False
+    else:  # oversample
+        target_size = max(len(idx_a), len(idx_b))
+        replace = True
 
-    balanced_idx = np.concatenate([idx_a, idx_b])
-    rng.shuffle(balanced_idx)
-    return x[balanced_idx], y[balanced_idx]
+    idx_a_sampled = rng.choice(idx_a, size=target_size, replace=replace)
+    idx_b_sampled = rng.choice(idx_b, size=target_size, replace=replace)
+
+    indices = np.concatenate([idx_a_sampled, idx_b_sampled])
+    rng.shuffle(indices)
+
+    return x[indices], y[indices]
+
+def balance_multi_classes(x, y, random_state=42):
+    """
+    Balance a multi-class dataset by undersampling all classes to match the size of the smallest class.
+    """
+    labels, counts = np.unique(y, return_counts=True)
+    min_count = counts.min()
+    rng = np.random.default_rng(random_state)
+    
+    balanced_indices = []
+    for label in labels:
+        label_indices = np.where(y == label)[0]
+        sampled_indices = rng.choice(label_indices, size=min_count, replace=False)
+        balanced_indices.extend(sampled_indices)
+        
+    balanced_indices = np.array(balanced_indices)
+    rng.shuffle(balanced_indices)
+    
+    return x[balanced_indices], y[balanced_indices]
 
 def standardize_by_train(train_features, val_features, test_features):
     """Standardize features using the mean and std of the training set."""
@@ -112,14 +133,9 @@ def build_features(mode, x_train, x_val, x_test, pca_components=0.95, random_sta
         val_features = extract_hog_features(x_val)
         test_features = extract_hog_features(x_test)
     elif mode == 'pca':
-        x_train_flat = extract_flatten_features(x_train)
-        x_val_flat = extract_flatten_features(x_val)
-        x_test_flat = extract_flatten_features(x_test)
-
-        pca = PCA(n_components=pca_components, random_state=random_state)
-        train_features = pca.fit_transform(x_train_flat)
-        val_features = pca.transform(x_val_flat)
-        test_features = pca.transform(x_test_flat)
+        train_features, val_features, test_features = extract_pca_features(
+            x_train, x_val, x_test, pca_components, random_state
+        )
     else:
         raise ValueError(f"Unsupported mode '{mode}'. Use 'flatten', 'hog', or 'pca'.")
 
@@ -130,6 +146,10 @@ def build_features(mode, x_train, x_val, x_test, pca_components=0.95, random_sta
 
 def extract_flatten_features(x):
     """Flatten the 28x28 images into 784-dimensional vectors."""
+    if x.size == 0:
+        feature_dim = int(np.prod(x.shape[1:])) if x.ndim > 1 else 0
+        return np.empty((x.shape[0], feature_dim), dtype=x.dtype)
+
     return x.reshape(x.shape[0], -1)
 
 def extract_hog_features(x, pixels_per_cell=(4,4), cells_per_block=(2,2), orientations=9):
@@ -141,8 +161,16 @@ def extract_hog_features(x, pixels_per_cell=(4,4), cells_per_block=(2,2), orient
 
     return np.array(hog_features)
 
-def extract_pca_features(x, n_components=0.95, random_state=42):
-    """Extract PCA features from one image array by flattening then applying PCA."""
-    x_flat = extract_flatten_features(x)
+def extract_pca_features(x_train, x_val, x_test, n_components=0.95, random_state=42):
+    x_train_flat = extract_flatten_features(x_train)
+    x_val_flat = extract_flatten_features(x_val)
+    x_test_flat = extract_flatten_features(x_test)
+
     pca = PCA(n_components=n_components, random_state=random_state)
-    return pca.fit_transform(x_flat)
+
+    train_features = pca.fit_transform(x_train_flat)
+    # Handle empty validation set
+    val_features = pca.transform(x_val_flat) if x_val_flat.shape[0] > 0 else np.empty((0, pca.n_components_))
+    test_features = pca.transform(x_test_flat)
+
+    return train_features, val_features, test_features

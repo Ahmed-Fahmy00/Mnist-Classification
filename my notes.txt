@@ -50,3 +50,4 @@ Standard Scaling (Standardization)
 visualize with weights 
 Handling class imbalance
 
+## Visualise Feature Extraction — Step 1: Flattening
