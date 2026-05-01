@@ -3,207 +3,92 @@ from collections import Counter
 
 class KNNClassifier:
     def __init__(self, k=5):
-        """
-        Initialize the K-Nearest Neighbors classifier.
-        
-        Args:
-            k (int): Number of neighbors to use.
-        """
+        """Initialize K-Nearest Neighbors classifier."""
         self.k = k
         self.X_train = None
         self.y_train = None
         self.classes_ = None
+        self._x_train_sq = None
 
-    def train(self, X_train, y_train):
-        """
-        Train the KNN model (store the training data).
-        
-        Args:
-            X_train (np.ndarray): Training data features.
-            y_train (np.ndarray): Training data labels.
-        """
-        self.X_train = X_train
-        self.y_train = y_train
+    def fit(self, X_train, y_train):
+        """Store training data."""
+        # Use float32 to cut memory footprint roughly in half vs float64.
+        self.X_train = np.asarray(X_train, dtype=np.float32, order='C')
+        self.y_train = np.asarray(y_train)
         self.classes_ = np.unique(y_train)
-
+        self._x_train_sq = np.sum(self.X_train**2, axis=1)
+    
     def compute_distances(self, X):
         """
-        Compute the Euclidean distance between test data and training data.
-        Uses vectorized operations for efficiency: (X - Y)^2 = X^2 + Y^2 - 2XY
-        
-        Args:
-            X (np.ndarray): Test data features.
-            
-        Returns:
-            np.ndarray: Matrix of distances of shape (num_test, num_train)
+        Compute vectorized Euclidean distances between X and training data.
+        Formula: d² = ||X||² + ||Y||² - 2X·Y
         """
-        # X shape: (num_test, num_features)
-        # self.X_train shape: (num_train, num_features)
-        
+        X = np.asarray(X, dtype=np.float32, order='C')
         dists = -2 * np.dot(X, self.X_train.T)
-        dists += np.sum(X**2, axis=1)[:, np.newaxis]
-        dists += np.sum(self.X_train**2, axis=1)[np.newaxis, :]
-        
-        # Ensure no negative values due to floating point inaccuracies
-        dists = np.maximum(dists, 0)
-        return np.sqrt(dists)
+        dists += np.sum(X**2, axis=1, keepdims=True)
+        dists += self._x_train_sq
+        return np.sqrt(np.maximum(dists, 0))
 
-    def predict(self, X, batch_size=500):
+    def predict(self, X, dists=None, batch_size=100):
         """
-        Predict the class labels for the provided data using batching to save RAM.
+        Predict class labels for samples in X.
         
         Args:
-            X (np.ndarray): Test data features.
-            batch_size (int): Number of samples to process at a time.
-            
-        Returns:
-            np.ndarray: Predicted class labels.
+            X: Features (required if dists is None)
+            dists: Precomputed distance matrix (optional, skips computation)
+            batch_size: Process in batches to save memory
         """
-        num_test = X.shape[0]
-        y_pred = np.zeros(num_test, dtype=self.y_train.dtype)
+        predictions = np.zeros(len(X) if dists is None else len(dists), dtype=self.y_train.dtype)
         
-        for start_idx in range(0, num_test, batch_size):
-            end_idx = min(start_idx + batch_size, num_test)
-            X_batch = X[start_idx:end_idx]
-            
-            # Compute distances for this batch only
-            dists_batch = self.compute_distances(X_batch)
-            
-            for i in range(end_idx - start_idx):
-                # Find indices of the k nearest neighbors. 
-                if self.k < len(dists_batch[i]):
-                    closest_y_indices = np.argpartition(dists_batch[i], self.k)[:self.k]
-                else:
-                    closest_y_indices = np.argsort(dists_batch[i])[:self.k]
+        if dists is None:
+            # Compute distances with batching
+            for start in range(0, len(X), batch_size):
+                end = min(start + batch_size, len(X))
+                X_batch = X[start:end]
+                dists_batch = self.compute_distances(X_batch)
                 
-                # Get the labels of the k nearest neighbors
-                closest_y = self.y_train[closest_y_indices]
-                
-                # Find the most common label
-                most_common = Counter(closest_y).most_common(1)
-                y_pred[start_idx + i] = most_common[0][0]
-                
-        return y_pred
+                for i in range(len(X_batch)):
+                    k_idx = np.argpartition(dists_batch[i], min(self.k, len(dists_batch[i])-1))[:self.k]
+                    predictions[start + i] = Counter(self.y_train[k_idx]).most_common(1)[0][0]
+        else:
+            # Use precomputed distances (no batching needed)
+            for i in range(len(dists)):
+                k_idx = np.argpartition(dists[i], min(self.k, len(dists[i])-1))[:self.k]
+                predictions[i] = Counter(self.y_train[k_idx]).most_common(1)[0][0]
+        
+        return predictions
 
-    def predict_proba(self, X, batch_size=500):
+    def predict_proba(self, X, dists=None, batch_size=100):
         """
-        Predict class probabilities for the provided data.
+        Predict class probabilities.
         
         Args:
-            X (np.ndarray): Test data features.
-            batch_size (int): Number of samples to process at a time.
-            
-        Returns:
-            np.ndarray: Probabilities of shape (num_test, num_classes).
+            X: Features (required if dists is None)
+            dists: Precomputed distance matrix (optional, skips computation)
+            batch_size: Process in batches to save memory
         """
-        if self.classes_ is None:
-            raise RuntimeError("Model must be trained before predicting.")
-            
-        num_test = X.shape[0]
-        num_classes = len(self.classes_)
-        probas = np.zeros((num_test, num_classes), dtype=float)
-        
-        # Create a mapping from class label to index
+        n_samples = len(X) if dists is None else len(dists)
+        probas = np.zeros((n_samples, len(self.classes_)), dtype=float)
         label_to_idx = {label: i for i, label in enumerate(self.classes_)}
         
-        for start_idx in range(0, num_test, batch_size):
-            end_idx = min(start_idx + batch_size, num_test)
-            X_batch = X[start_idx:end_idx]
-            
-            dists_batch = self.compute_distances(X_batch)
-            
-            for i in range(end_idx - start_idx):
-                if self.k < len(dists_batch[i]):
-                    closest_y_indices = np.argpartition(dists_batch[i], self.k)[:self.k]
-                else:
-                    closest_y_indices = np.argsort(dists_batch[i])[:self.k]
+        if dists is None:
+            # Compute distances with batching
+            for start in range(0, len(X), batch_size):
+                end = min(start + batch_size, len(X))
+                X_batch = X[start:end]
+                dists_batch = self.compute_distances(X_batch)
                 
-                closest_y = self.y_train[closest_y_indices]
-                
-                # Count frequencies of each class among the k neighbors
-                counts = Counter(closest_y)
-                for label, count in counts.items():
+                for i in range(len(X_batch)):
+                    k_idx = np.argpartition(dists_batch[i], min(self.k, len(dists_batch[i])-1))[:self.k]
+                    for label, count in Counter(self.y_train[k_idx]).items():
+                        if label in label_to_idx:
+                            probas[start + i, label_to_idx[label]] = count / self.k
+        else:
+            # Use precomputed distances
+            for i in range(len(dists)):
+                k_idx = np.argpartition(dists[i], min(self.k, len(dists[i])-1))[:self.k]
+                for label, count in Counter(self.y_train[k_idx]).items():
                     if label in label_to_idx:
-                        idx = label_to_idx[label]
-                        probas[start_idx + i, idx] = count / self.k
-                        
+                        probas[i, label_to_idx[label]] = count / self.k
+        
         return probas
-
-
-class BaggedKNNClassifier:
-    def __init__(self, n_estimators=5, k=5, max_samples=0.8, random_state=42):
-        """
-        Initialize the Bagged KNN classifier (Ensemble method).
-        
-        Args:
-            n_estimators (int): Number of KNN models in the ensemble.
-            k (int): Number of neighbors to use for each base KNN model.
-            max_samples (float): The fraction of training data to use for each base model.
-            random_state (int): Seed for reproducibility.
-        """
-        self.n_estimators = n_estimators
-        self.k = k
-        self.max_samples = max_samples
-        self.random_state = random_state
-        self.models = []
-
-    def train(self, X_train, y_train):
-        """
-        Train the ensemble by giving each KNN model a random subset of the training data.
-        """
-        self.classes_ = np.unique(y_train)
-        self.models = []
-        n_samples = int(len(X_train) * self.max_samples)
-        rng = np.random.default_rng(self.random_state)
-        
-        for _ in range(self.n_estimators):
-            # Bootstrap sampling (with replacement)
-            indices = rng.choice(len(X_train), size=n_samples, replace=True)
-            X_subset = X_train[indices]
-            y_subset = y_train[indices]
-            
-            # Train a new KNN model on this subset
-            model = KNNClassifier(k=self.k)
-            model.train(X_subset, y_subset)
-            self.models.append(model)
-
-    def predict(self, X, batch_size=500):
-        """
-        Predict the class labels by majority vote across all models in the ensemble.
-        """
-        num_test = X.shape[0]
-        # Collect predictions from all models
-        all_preds = np.zeros((self.n_estimators, num_test), dtype=int)
-        
-        for idx, model in enumerate(self.models):
-            print(f"  Bagged Model {idx+1}/{self.n_estimators} predicting...")
-            all_preds[idx] = model.predict(X, batch_size=batch_size)
-            
-        # Majority voting
-        y_pred = np.zeros(num_test, dtype=int)
-        for i in range(num_test):
-            votes = all_preds[:, i]
-            most_common = Counter(votes).most_common(1)
-            y_pred[i] = most_common[0][0]
-            
-        return y_pred
-
-    def predict_proba(self, X, batch_size=500):
-        """
-        Predict class probabilities by averaging probabilities across all models.
-        """
-        if not hasattr(self, 'classes_') or self.classes_ is None:
-            raise RuntimeError("Model must be trained before predicting.")
-            
-        num_test = X.shape[0]
-        num_classes = len(self.classes_)
-        
-        # Accumulate probabilities
-        avg_probas = np.zeros((num_test, num_classes), dtype=float)
-        
-        for idx, model in enumerate(self.models):
-            print(f"  Bagged Model {idx+1}/{self.n_estimators} calculating probabilities...")
-            avg_probas += model.predict_proba(X, batch_size=batch_size)
-            
-        avg_probas /= self.n_estimators
-        return avg_probas

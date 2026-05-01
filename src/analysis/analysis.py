@@ -179,12 +179,32 @@ def show_top_config(
 	"""Return the best configuration row (as dict) by a metric (descending)."""
 	if summary_df.empty:
 		raise ValueError("summary_df is empty")
+	# Allow common metric synonyms (e.g. 'f1_macro' vs 'f1_score') for backward compatibility
 	if metric not in summary_df.columns:
-		raise KeyError(f"Metric '{metric}' is not in summary_df")
+		synonyms = {
+			'f1_macro': ['f1_score', 'f1_macro', 'f1'],
+			'f1_score': ['f1_score', 'f1_macro', 'f1'],
+			'accuracy': ['accuracy', 'acc'],
+		}
+		found = None
+		if metric in synonyms:
+			for alt in synonyms[metric]:
+				if alt in summary_df.columns:
+					found = alt
+					break
+		else:
+			# Try to find any column that contains the metric string
+			for col in summary_df.columns:
+				if metric in col:
+					found = col
+					break
+
+		if found is None:
+			raise KeyError(f"Metric '{metric}' is not in summary_df. Available metrics: {list(summary_df.columns)}")
+		metric = found
 
 	best_row = summary_df.sort_values(by=[metric], ascending=[False]).iloc[0]
 	return best_row.to_dict()
-
 
 def plot_roc_curves(
     summary_df: pd.DataFrame,
