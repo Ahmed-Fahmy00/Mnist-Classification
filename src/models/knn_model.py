@@ -1,5 +1,6 @@
 import numpy as np
 from collections import Counter
+from src.features.evaluation import accuracy_score
 
 class KNNClassifier:
     def __init__(self, k=5):
@@ -110,8 +111,7 @@ def grid_search_knn(k_values, X_train, y_train, cv=5, max_train_eval_samples=500
         list: A list of dictionaries containing K and metrics.
         dict: The best K value based on validation accuracy.
     """
-    from src.analysis.evaluation import accuracy_score
-    
+
     def validate_data(X, y):
         if X.shape[0] != y.shape[0]:
             raise ValueError(f"Mismatch in number of samples: X has {X.shape[0]}, y has {y.shape[0]}")

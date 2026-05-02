@@ -101,19 +101,13 @@ Given query matrix $X_q\,(\ell \times d)$ and training matrix $X_{\text{tr}}\,(m
 D^2 = \|X_q\|^2 + \|X_{\text{tr}}\|^2 - 2\,X_q \cdot X_{\text{tr}}^\top
 \]
 
-\subsubsection*{2.\ K-Selection via Argpartition}
-The $K$ nearest indices are found in $O(n)$ rather than $O(n \log n)$:
-\[
-\text{k\_idx} = \operatorname{argpartition}(d_i,\;K)[:K]
-\]
-
-\subsubsection*{3.\ Majority Vote (Classification Rule)}
+\subsubsection*{2.\ Majority Vote (Classification Rule)}
 The predicted class is the most frequent label among the $K$ neighbours:
 \[
 \hat{y} = \operatorname*{arg\,max}_{c}\ \bigl|\{\,x_i \in \mathcal{N}_K(x) : y_i = c\,\}\bigr|
 \]
 
-\subsubsection*{4.\ Class Frequency Ratio (Probability Estimation)}
+\subsubsection*{3.\ Class Frequency Ratio (Probability Estimation)}
 Soft probabilities are the fraction of the $K$ neighbours belonging to each class:
 \[
 \hat{P}(Y = c \mid x) = \frac{\text{count}_c}{K}
@@ -121,26 +115,28 @@ Soft probabilities are the fraction of the $K$ neighbours belonging to each clas
 
 \subsection{Results}
 
+The notebook's final summary reports the best configuration for each feature representation as follows:
+
 \vspace{4pt}
 \begin{center}
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Feature} & \textbf{Best $K$} & \textbf{Val Acc.} & \textbf{Test Acc.} & \textbf{F1-Score} \\
+\begin{tabular}{lccc}
+    oprule
+    extbf{Method} & \textbf{Best $K$} & \textbf{Test Acc.} & \textbf{Test F1} \\
 \midrule
-\textbf{Flatten} & \textbf{3} & \textbf{0.9994} & \textbf{0.9994} & \textbf{0.9994} \\
-PCA (95\%)       & 5          & 0.9991          & 0.9991          & 0.9991          \\
-HOG              & 5          & 0.9989          & 0.9989          & 0.9989          \\
+    extbf{Flatten} & \textbf{3} & \textbf{0.9959} & \textbf{0.9959} \\
+HOG              & 11         & 0.9953          & 0.9953          \\
+PCA (95\%)       & 1          & 0.9929          & 0.9929          \\
 \bottomrule
 \end{tabular}
 \end{center}
 \vspace{4pt}
 
-\noindent\textbf{Confusion Matrix — Flatten, $K=3$:}
+\noindent\textbf{Confusion Matrix --- Flatten, $K=3$:}
 \[
-\begin{pmatrix} 1135 & 1 \\ 1 & 1172 \end{pmatrix}
+\begin{pmatrix} 1396 & 6 \\ 6 & 1548 \end{pmatrix}
 \]
 
-The best configuration is \textbf{Flatten with $K=3$} (99.94\% accuracy, F1 = 0.9994). Digits 0 and 1 are geometrically distinct, making raw pixel distances sufficient for near-perfect separation without dimensionality reduction.
+The best overall configuration is \textbf{Flatten with $K=3$}, with 99.59\% accuracy and an F1-score of 0.9959. Digits 0 and 1 are geometrically distinct, making raw pixel distances sufficient for strong separation without dimensionality reduction.
 
 \newpage
 

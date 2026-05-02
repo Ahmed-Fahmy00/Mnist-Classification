@@ -35,7 +35,7 @@ This repository contains the MNIST classification project for CAIE CSE382 Spring
 
 - [src/features/mnist_dataset_exploration.ipynb](src/features/mnist_dataset_exploration.ipynb): inspect the dataset, labels, and sample images
 - [src/features/mnist_feature_prep_workflow.ipynb](src/features/mnist_feature_prep_workflow.ipynb): see normalization, splitting, flattening, PCA, and HOG
-- [src/pipelines/phase1_knn_pipeline.ipynb](src/pipelines/phase1_knn_pipeline.ipynb): notebook orchestration for the binary KNN experiment
+- [src/pipelines/phase1_knn.ipynb](src/pipelines/phase1_knn.ipynb): notebook orchestration for the binary KNN experiment
 
 ## Python Modules
 
@@ -68,7 +68,7 @@ Create a `.env` file in the project root from [\.env.example](.env.example). Sup
 3. Open and run [src/features/mnist_dataset_exploration.ipynb](src/features/mnist_dataset_exploration.ipynb) first.
 4. Open and run [src/features/mnist_feature_prep_workflow.ipynb](src/features/mnist_feature_prep_workflow.ipynb) next.
 5. Run the Phase 1 notebook pipeline:
-   - [src/pipelines/phase1_knn_pipeline.ipynb](src/pipelines/phase1_knn_pipeline.ipynb)
+   - [src/pipelines/phase1_knn.ipynb](src/pipelines/phase1_knn.ipynb)
 
 ## Recommended Next Tasks
 

@@ -1,33 +1,3 @@
-Image Classification 
-Datasets: MNIST.npz
-
-#ALL Models Implement at least three algorithms such as: 
--Logistic/Multinomial Regression  Hady 
--K-Nearest Neighbors (KNN) fahmy
--Naïve Bayes mohamed 
--Decision Trees 
--Linear Support Vector Machines 
--Kernel Support Vector Machines 
-
-==============================================================
-####Phase 1: Binary Classification (2 Classes)  0 or 1
-
---at least three different machine learning algorithm
-
-#Required Tasks 
-Problem Definition 
-Data Processing 
-Loss Function & Optimization 
-Evaluation 
-
-#Phase 1 Deliverables 
-• Clean code 
-• Technical report (5–7 pages) 
-• Mathematical formulation 
-• Experimental results table 
-• Model comparison discussion
-==============================================================
-
 ####Phase 2: Multi classification (10 classes) 0 to 9
 
 #Required Improvements (Choose at least three) 
@@ -43,11 +13,3 @@ Evaluation
 • Clean, commented code 
 • Presentation (10–15 minutes) 
 • Demonstration of results 
-==============================================================
-
-Minmax Scaling (Normalization)
-Standard Scaling (Standardization)
-visualize with weights 
-Handling class imbalance
-
-## Visualise Feature Extraction — Step 1: Flattening
