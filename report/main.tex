@@ -157,21 +157,7 @@ Each epoch proceeds as follows:
     \]
     Extract $X_b = X_{\text{shuffled}}[\text{start}:\text{end}]\ (B\times 785)$ and $y_b\ (B\times 1)$,
     then perform the forward pass and weight update described above.
-
-    \item \textbf{Validation loss:} after all batches, compute $\mathcal{L}_{\text{val}}$ on the full validation set:
-    \[
-    z_v = X_{\text{val}}\, w \qquad (10{,}000 \times 785) \cdot (785 \times 1) = (10{,}000 \times 1)
-    \]
-    \[
-    \hat{y}_v = \sigma(z_v) \quad (10{,}000 \times 1), \text{ clipped to } [10^{-15},\, 1-10^{-15}]
-    \]
-    \[
-    \mathcal{L}_{\text{val}} = -\frac{1}{N_{\text{val}}}
-    \sum_{i=1}^{N_{\text{val}}} \Bigl[
-    y_i \log(\hat{y}_{v,i}) + (1-y_i)\log(1 - \hat{y}_{v,i})
-    \Bigr]
-    \]
-    
+   
 \end{enumerate}
 
 %% ============================================================
