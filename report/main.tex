@@ -1,4 +1,4 @@
-\documentclass[12pt,a4paper]{article}
+\documentclass[11pt,a4paper]{article}
 
 \usepackage{amsmath, amssymb}
 \usepackage{geometry}
@@ -7,8 +7,12 @@
 \usepackage{hyperref}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{parskip}
 
-\geometry{margin=2.5cm}
+\geometry{margin=2cm, top=2cm, bottom=2cm}
+
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{0pt}
 
 \hypersetup{
     colorlinks=true,
@@ -29,14 +33,115 @@
     breaklines=true
 }
 
-\title{Binary Classification Report:\\Logistic Regression \& Gaussian Naïve Bayes}
+\title{\vspace{-1cm}Binary Image Classification Report:\\
+K-Nearest Neighbors, Logistic Regression \& Gaussian Na\"{i}ve Bayes}
 \author{}
 \date{}
 
 \begin{document}
 
 \maketitle
+\vspace{-0.8cm}
 \tableofcontents
+\newpage
+
+%% ============================================================
+\section{Introduction}
+%% ============================================================
+
+This report presents the implementation and evaluation of three machine learning algorithms --- \textbf{K-Nearest Neighbors (KNN)}, \textbf{Logistic Regression}, and \textbf{Gaussian Na\"{i}ve Bayes} --- for binary image classification on the MNIST handwritten digit dataset, as part of Phase~1 of the CSE382 Major Project. Each model is built from scratch and evaluated under a shared preprocessing pipeline using accuracy, precision, recall, F1-score, and confusion matrices.
+
+%% ============================================================
+\section{Data Preprocessing}
+%% ============================================================
+
+\subsection{Normalization}
+Raw MNIST pixel values in $[0,255]$ are normalized to $[0,1]$: $\;\hat{x} = x / 255.0$
+
+\subsection{Feature Extraction}
+Three representations are compared: \textbf{Flatten} — each $28\times28$ image reshaped to $x \in \mathbb{R}^{784}$; \textbf{PCA} — projection onto the top $k$ eigenvectors retaining 95\% variance, fit on training data only; \textbf{HOG} — Histogram of Oriented Gradients with $4\times4$ cells, $2\times2$ blocks, and 9 orientation bins.
+
+\subsection{Class Imbalance}
+Random undersampling is applied to the training split only: $N_{\text{balanced}} = \min(|C_0|, |C_1|)$
+
+\subsection{Feature Standardization}
+Features are standardized using training-set statistics (zero-variance dimensions set to $\sigma=1$):
+\[
+z = \frac{x - \mu_{\text{train}}}{\sigma_{\text{train}}}
+\]
+
+\subsection{Train / Validation / Test Split}
+The binary subset ($\sim$14,780 samples, seed = 42) is split as follows:
+
+\vspace{4pt}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Split} & \textbf{Proportion} & \textbf{Approx.\ Samples} \\
+\midrule
+Training   & 60\% & $\sim$8,868 \\
+Validation & 20\% & $\sim$2,956 \\
+Test       & 20\% & $\sim$2,956 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%% ============================================================
+\section{K-Nearest Neighbors (KNN)}
+%% ============================================================
+
+\subsection{Overview}
+KNN is a non-parametric, instance-based classifier with no explicit training phase — the dataset is memorised and all computation occurs at prediction time. Given a query sample, KNN computes its distance to every training point, selects the $K$ closest neighbours, and assigns the majority class label. $K$ is tuned via 5-fold cross-validation over $K \in \{1, 3, 5, 7, 9, 11\}$.
+
+\subsection{Mathematical Formulation}
+
+\subsubsection*{1.\ Euclidean Distance (Vectorized)}
+Given query matrix $X_q\,(\ell \times d)$ and training matrix $X_{\text{tr}}\,(m \times d)$, squared distances are computed via a single matrix multiplication:
+\[
+D^2 = \|X_q\|^2 + \|X_{\text{tr}}\|^2 - 2\,X_q \cdot X_{\text{tr}}^\top
+\]
+
+\subsubsection*{2.\ K-Selection via Argpartition}
+The $K$ nearest indices are found in $O(n)$ rather than $O(n \log n)$:
+\[
+\text{k\_idx} = \operatorname{argpartition}(d_i,\;K)[:K]
+\]
+
+\subsubsection*{3.\ Majority Vote (Classification Rule)}
+The predicted class is the most frequent label among the $K$ neighbours:
+\[
+\hat{y} = \operatorname*{arg\,max}_{c}\ \bigl|\{\,x_i \in \mathcal{N}_K(x) : y_i = c\,\}\bigr|
+\]
+
+\subsubsection*{4.\ Class Frequency Ratio (Probability Estimation)}
+Soft probabilities are the fraction of the $K$ neighbours belonging to each class:
+\[
+\hat{P}(Y = c \mid x) = \frac{\text{count}_c}{K}
+\]
+
+\subsection{Results}
+
+\vspace{4pt}
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Feature} & \textbf{Best $K$} & \textbf{Val Acc.} & \textbf{Test Acc.} & \textbf{F1-Score} \\
+\midrule
+\textbf{Flatten} & \textbf{3} & \textbf{0.9994} & \textbf{0.9994} & \textbf{0.9994} \\
+PCA (95\%)       & 5          & 0.9991          & 0.9991          & 0.9991          \\
+HOG              & 5          & 0.9989          & 0.9989          & 0.9989          \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{4pt}
+
+\noindent\textbf{Confusion Matrix — Flatten, $K=3$:}
+\[
+\begin{pmatrix} 1135 & 1 \\ 1 & 1172 \end{pmatrix}
+\]
+
+The best configuration is \textbf{Flatten with $K=3$} (99.94\% accuracy, F1 = 0.9994). Digits 0 and 1 are geometrically distinct, making raw pixel distances sufficient for near-perfect separation without dimensionality reduction.
+
 \newpage
 
 %% ============================================================
@@ -52,31 +157,27 @@ The predicted probability is computed via the sigmoid function:
 Applied element-wise, $\hat{y}_i \in (0,1)$ is the predicted probability that sample $i$ belongs to digit $d$.
 
 \subsection{Loss Function (Binary Cross-Entropy)}
-
 For a mini-batch of size $B$:
 \[
-\mathcal{L}(w) = -\frac{1}{B} \sum_{i=1}^{B} \Bigl[ y_i \log(\hat{y}_i) + (1 - y_i)\log(1 - \hat{y}_i) \Bigr]
+\mathcal{L}(w) = -\frac{1}{B} \sum_{i=1}^{B} \left[ y_i \log(\hat{y}_i) + (1 - y_i)\log(1 - \hat{y}_i) \right]
 \]
 The validation loss uses $N_{\text{val}} = 10{,}000$ samples and is computed after each full epoch to monitor generalisation.
 
 \subsection{Handling Class Imbalance}
-
 To account for an imbalanced class distribution in the training data, class-specific weights are introduced into the loss function. Given $N$ total samples, $n_{\text{pos}}$ positive examples, and $n_{\text{neg}}$ negative examples, the weights are:
 \[
 w_{\text{pos}} = \frac{N}{2\, n_{\text{pos}}}, \qquad w_{\text{neg}} = \frac{N}{2\, n_{\text{neg}}}
 \]
-These factors upweight the minority class and downweight the majority class, ensuring that the gradient signal is balanced across both classes regardless of their relative frequencies. The weighted binary cross-entropy loss becomes:
+These factors upweight the minority class and downweight the majority class, ensuring balanced gradient signals. The weighted binary cross-entropy loss becomes:
 \[
-\mathcal{L}(w) = -\frac{1}{B} \sum_{i=1}^{B} \Bigl[ w_{\text{pos}}\, y_i \log(\hat{y}_i) + w_{\text{neg}}(1 - y_i)\log(1 - \hat{y}_i) \Bigr]
+\mathcal{L}(w) = -\frac{1}{B} \sum_{i=1}^{B} \left[ w_{\text{pos}}\, y_i \log(\hat{y}_i) + w_{\text{neg}}(1 - y_i)\log(1 - \hat{y}_i) \right]
 \]
 
 \subsection{Gradient Derivation via Chain Rule}
-
 \textbf{Why} $\displaystyle\frac{\partial \mathcal{L}}{\partial w} = \frac{1}{B} X_b^\top (\hat{y} - y)$
 
-We derive the gradient from first principles using the chain rule, working through three composed functions.
+We derive the gradient from first principles using the chain rule through three composed functions.
 
-\medskip
 \noindent\textbf{Step 1 — Loss w.r.t.\ $\hat{y}_i$}
 \[
 \frac{\partial \mathcal{L}}{\partial \hat{y}_i}
@@ -84,7 +185,6 @@ We derive the gradient from first principles using the chain rule, working throu
 = -\frac{1}{B} \cdot \frac{y_i - \hat{y}_i}{\hat{y}_i(1-\hat{y}_i)}
 \]
 
-\medskip
 \noindent\textbf{Step 2 — $\hat{y}_i$ w.r.t.\ $z_i$ (sigmoid derivative)}
 \[
 \frac{\partial \hat{y}_i}{\partial z_i} = \sigma(z_i)\bigl(1 - \sigma(z_i)\bigr) = \hat{y}_i(1 - \hat{y}_i)
@@ -98,14 +198,12 @@ We derive the gradient from first principles using the chain rule, working throu
 = \sigma \cdot (1 - \sigma)
 \]
 
-\medskip
 \noindent\textbf{Step 3 — $z_i$ w.r.t.\ $w$}
 \[
 \frac{\partial z_i}{\partial w} = x_i' \quad (785 \times 1)
 \]
 
-\medskip
-\noindent\textbf{Chaining Steps 1–3}
+\noindent\textbf{Chaining Steps 1--3}
 \[
 \frac{\partial \mathcal{L}}{\partial w}
 = \sum_{i=1}^{B}
@@ -148,7 +246,7 @@ Matching \texttt{w -= learning\_rate * de\_dw}, where $\eta$ is \texttt{learning
 Each epoch proceeds as follows:
 
 \begin{enumerate}
-    \item \textbf{Shuffle:} draw a random permutation of the 50,000 training indices —
+    \item \textbf{Shuffle:} draw a random permutation of the 50,000 training indices ---
     \texttt{indices = np.random.permutation(N)}.
 
     \item \textbf{Batch loop:} for batch $k = 0, 1, \ldots, \lfloor N/B \rfloor - 1$:
@@ -161,15 +259,13 @@ Each epoch proceeds as follows:
 \end{enumerate}
 
 %% ============================================================
-\section{Gaussian Naïve Bayes}
+\section{Gaussian Na\"{i}ve Bayes}
 %% ============================================================
 
 \subsection{Methodology and Preprocessing}
+The objective was to implement a Gaussian Na\"{i}ve Bayes classifier from scratch for binary classification. Digits 3 and 8 were selected due to their structural similarity.
 
-The objective of this phase was to design and implement a Gaussian Naïve Bayes classifier from scratch to perform binary classification. The digits 3 and 8 were selected due to their high structural similarity, providing a rigorous test for the classifier's discriminative power.
-
-\medskip
-\noindent\textbf{Preprocessing Pipeline:}
+\noindent\textbf{Preprocessing:}
 \begin{itemize}
     \item \textbf{Filtering:} The raw MNIST dataset was filtered to include only instances of the target classes.
     \item \textbf{Flattening:} Each $28\times28$ pixel matrix was transformed into a 784-dimensional feature vector $x \in \mathbb{R}^{784}$.
@@ -177,7 +273,6 @@ The objective of this phase was to design and implement a Gaussian Naïve Bayes 
 \end{itemize}
 
 \subsection{Mathematical Formulation}
-
 The classifier predicts the class $y$ by maximising the posterior probability $P(y \mid x)$ via Bayes' Theorem:
 \[
 P(y \mid x) \propto P(y) \prod_{i} P(x_i \mid y)
@@ -206,11 +301,9 @@ Testing Accuracy  & 92.59\% \\
 \end{tabular}
 \end{center}
 
-\medskip
 \noindent\textbf{Confusion Matrix:}
 \[
 \begin{pmatrix} 905 & 105 \\ 42 & 932 \end{pmatrix}
 \]
-
 
 \end{document}

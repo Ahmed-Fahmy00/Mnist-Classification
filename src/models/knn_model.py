@@ -92,3 +92,91 @@ class KNNClassifier:
                         probas[i, label_to_idx[label]] = count / self.k
         
         return probas
+
+
+def grid_search_knn(k_values, X_train, y_train, cv=5, max_train_eval_samples=500):
+    """
+    Memory-safe grid search for KNN.
+    Avoids allocating very large train/train distance matrices that can exceed RAM.
+    
+    Args:
+        k_values: List of K values to test.
+        X_train: Training features.
+        y_train: Training labels.
+        cv: Number of cross-validation folds.
+        max_train_eval_samples: Max number of training samples used to estimate train accuracy.
+        
+    Returns:
+        list: A list of dictionaries containing K and metrics.
+        dict: The best K value based on validation accuracy.
+    """
+    from src.analysis.evaluation import accuracy_score
+    
+    def validate_data(X, y):
+        if X.shape[0] != y.shape[0]:
+            raise ValueError(f"Mismatch in number of samples: X has {X.shape[0]}, y has {y.shape[0]}")
+        if X.ndim != 2:
+            raise ValueError(f"Features X must be a 2D array, got {X.ndim}D")
+        if y.ndim != 1:
+            raise ValueError(f"Labels y must be a 1D array, got {y.ndim}D")
+        if not np.all(np.isfinite(X)):
+            raise ValueError("Features X contain non-finite values (NaN or Inf)")
+    
+    validate_data(X_train, y_train)
+    fold_size = len(X_train) // cv
+    indices = np.arange(len(X_train))
+    np.random.shuffle(indices)
+    
+    # Store results for each K
+    k_val_accs = {k: [] for k in k_values}
+    k_train_accs = {k: [] for k in k_values}
+    
+    for fold_idx in range(cv):
+        val_idx = indices[fold_idx * fold_size : (fold_idx + 1) * fold_size]
+        train_idx = np.concatenate([indices[:fold_idx * fold_size], indices[(fold_idx + 1) * fold_size:]])
+        
+        X_train_fold, y_train_fold = X_train[train_idx], y_train[train_idx]
+        X_val_fold, y_val_fold = X_train[val_idx], y_train[val_idx]
+        
+        # Train a KNN model (K doesn't matter for training, only for predict)
+        model = KNNClassifier(k=k_values[0])
+        model.fit(X_train_fold, y_train_fold)
+        
+        # Estimating train accuracy on a bounded subset avoids N_train x N_train blowups.
+        if len(X_train_fold) > max_train_eval_samples:
+            eval_idx = np.random.choice(len(X_train_fold), size=max_train_eval_samples, replace=False)
+            X_train_eval = X_train_fold[eval_idx]
+            y_train_eval = y_train_fold[eval_idx]
+        else:
+            X_train_eval = X_train_fold
+            y_train_eval = y_train_fold
+        
+        # Test all K values without materializing huge global distance matrices.
+        for k in k_values:
+            model.k = k
+            y_val_pred = model.predict(X_val_fold)
+            k_val_accs[k].append(accuracy_score(y_val_fold, y_val_pred))
+            
+            y_train_pred = model.predict(X_train_eval)
+            k_train_accs[k].append(accuracy_score(y_train_eval, y_train_pred))
+    
+    # Aggregate results
+    results = []
+    best_k = None
+    best_val_accuracy = -1
+    
+    for k in k_values:
+        val_acc = np.mean(k_val_accs[k])
+        train_acc = np.mean(k_train_accs[k])
+        
+        results.append({
+            'params': {'k': k},
+            'val_accuracy': val_acc,
+            'train_accuracy': train_acc
+        })
+        
+        if val_acc > best_val_accuracy:
+            best_val_accuracy = val_acc
+            best_k = k
+    
+    return results, {'k': best_k}
