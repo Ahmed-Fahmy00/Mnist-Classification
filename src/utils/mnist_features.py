@@ -63,25 +63,19 @@ def normalize_data(x):
     """Normalize the pixel values to the range [0, 1]."""
     return x.astype(np.float32) / 255.0
 
-def balance_binary_classes(x, y, method='undersample', random_state=42):
+def balance_binary_classes(x, y, random_state=42):
     """Balance binary classes by random under/over sampling on the provided split."""
     labels = np.unique(y)
 
     if len(labels) != 2:
         raise ValueError("Expected exactly 2 classes")
-    if method not in ['undersample', 'oversample']:
-        raise ValueError("method must be 'undersample' or 'oversample'")
     
     idx_a = np.where(y == labels[0])[0]
     idx_b = np.where(y == labels[1])[0]
     rng = np.random.default_rng(random_state)
 
-    if method == 'undersample':
-        target_size = min(len(idx_a), len(idx_b))
-        replace = False
-    else:  # oversample
-        target_size = max(len(idx_a), len(idx_b))
-        replace = True
+    target_size = min(len(idx_a), len(idx_b))
+    replace = False
 
     idx_a_sampled = rng.choice(idx_a, size=target_size, replace=replace)
     idx_b_sampled = rng.choice(idx_b, size=target_size, replace=replace)
