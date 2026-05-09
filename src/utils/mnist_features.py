@@ -168,3 +168,43 @@ def extract_pca_features(x_train, x_val, x_test, n_components=0.95, random_state
     test_features = pca.transform(x_test_flat)
 
     return train_features, val_features, test_features
+
+def run_simple_cv(X, y, model_type, param_values, k=5):
+    """
+    X: Features (Flatten, PCA, or HOG)
+    y: Labels (All 10 classes)
+    model_type: The class name (NaiveBayes, KNNClassifier, etc.)
+    param_values: The list of numbers to test (epsilons or K-values)
+    """
+    # 1. Shuffle and Split Data
+    indices = np.random.permutation(len(X))
+    folds_X = np.array_split(X[indices], k)
+    folds_y = np.array_split(y[indices], k)
+    
+    results = {}
+
+    for val in param_values:
+        fold_accs = []
+        for i in range(k):
+            # 2. Assign Train vs Validation folds
+            x_val, y_val = folds_X[i], folds_y[i]
+            x_train = np.concatenate([f for j, f in enumerate(folds_X) if j != i])
+            y_train = np.concatenate([f for j, f in enumerate(folds_y) if j != i])
+            
+            # 3. Detect which parameter to use based on the model
+            if model_type.__name__ == 'NaiveBayes':
+                model = model_type(epsilon=val)
+            elif model_type.__name__ == 'KNNClassifier':
+                model = model_type(k=val)
+            else: # For Logistic Regression
+                model = model_type(learning_rate=val)
+
+            model.fit(x_train, y_train)
+            acc = accuracy_score(y_val, model.predict(x_val))
+            fold_accs.append(acc)
+            
+        results[val] = np.mean(fold_accs)
+        print(f"Testing {val}: Avg Accuracy = {results[val]:.4f}")
+
+    best_val = max(results, key=results.get)
+    return best_val, results[best_val]
