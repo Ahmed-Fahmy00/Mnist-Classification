@@ -6,28 +6,16 @@ such as the project KNN, logistic regression, and Naive Bayes implementations.
 """
 
 from __future__ import annotations
-
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
-
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.utils.evaluation import (
-    accuracy_score,
-    classification_report,
-    confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
-)
-
+from src.utils.evaluation import accuracy_score, classification_report, confusion_matrix, f1_score, precision_score, recall_score
 
 ModelFactory = Callable[[], Any]
 
-
 def _as_array(x: Any) -> np.ndarray:
     return np.asarray(x)
-
 
 def _subset_training_data(
     x: np.ndarray,
@@ -81,7 +69,6 @@ def _subset_training_data(
     rng.shuffle(chosen)
     return x[chosen], y[chosen]
 
-
 def evaluate_model(
     model: Any,
     x_train: np.ndarray,
@@ -118,7 +105,6 @@ def evaluate_model(
     }
 
     return results
-
 
 def diagnose_bias_variance(
     train_scores: Sequence[float],
@@ -167,7 +153,6 @@ def diagnose_bias_variance(
         "final_val_score": final_val,
         "generalization_gap": gap,
     }
-
 
 def build_learning_curve(
     model_factory: ModelFactory,
@@ -237,7 +222,6 @@ def build_learning_curve(
         "diagnosis": diagnosis,
     }
 
-
 def plot_learning_curve(
     curve: Dict[str, Any],
     *,
@@ -262,7 +246,6 @@ def plot_learning_curve(
     ax.legend()
     plt.tight_layout()
     return fig, ax
-
 
 def print_diagnosis(curve: Dict[str, Any]) -> None:
     """Print a short textual summary of the learning-curve diagnosis."""

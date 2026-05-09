@@ -13,9 +13,7 @@ By default, the last row is treated as the bias term and is not regularized.
 
 import numpy as np
 
-
 VALID_PENALTIES = {None, "none", "l1", "l2"}
-
 
 def validate_regularization(penalty=None, lambda_=0.0):
     """Validate regularization settings."""
@@ -23,7 +21,6 @@ def validate_regularization(penalty=None, lambda_=0.0):
         raise ValueError("penalty must be one of None, 'none', 'l1', or 'l2'")
     if lambda_ < 0:
         raise ValueError("lambda_ must be non-negative")
-
 
 def _regularized_view(weights, regularize_bias=False):
     """Return the part of weights that should be regularized."""
@@ -33,7 +30,6 @@ def _regularized_view(weights, regularize_bias=False):
     if weights.ndim == 0:
         return weights
     return weights[:-1]
-
 
 def regularization_loss(weights, penalty=None, lambda_=0.0, regularize_bias=False):
     """Compute the L1/L2 regularization loss term.
@@ -62,7 +58,6 @@ def regularization_loss(weights, penalty=None, lambda_=0.0, regularize_bias=Fals
         return 0.5 * lambda_ * np.sum(w_reg ** 2)
 
     raise ValueError("Unsupported penalty")
-
 
 def regularization_gradient(weights, penalty=None, lambda_=0.0, regularize_bias=False):
     """Compute the L1/L2 regularization gradient.
@@ -94,7 +89,6 @@ def regularization_gradient(weights, penalty=None, lambda_=0.0, regularize_bias=
 
     return gradient
 
-
 def regularization_terms(weights, penalty=None, lambda_=0.0, regularize_bias=False):
     """Return both regularization loss and gradient.
 
@@ -115,7 +109,6 @@ def regularization_terms(weights, penalty=None, lambda_=0.0, regularize_bias=Fal
         regularize_bias=regularize_bias,
     )
     return loss, gradient
-
 
 def add_regularization_to_gradient(
     data_gradient,

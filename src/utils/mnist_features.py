@@ -1,6 +1,7 @@
 import numpy as np
 from skimage.feature import hog
 from sklearn.decomposition import PCA
+from src.utils.evaluation import accuracy_score, classification_report, confusion_matrix, f1_score, precision_score, recall_score
 
 def load_mnist(npz_path):
     """Load MNIST dataset from a .npz file."""
@@ -169,7 +170,7 @@ def extract_pca_features(x_train, x_val, x_test, n_components=0.95, random_state
 
     return train_features, val_features, test_features
 
-def run_simple_cv(X, y, model_type, param_values, k=5):
+def run_simple_cv(X, y, model_type, param_values, k=5, return_details=False, verbose=True):
     """
     X: Features (Flatten, PCA, or HOG)
     y: Labels (All 10 classes)
@@ -182,9 +183,11 @@ def run_simple_cv(X, y, model_type, param_values, k=5):
     folds_y = np.array_split(y[indices], k)
     
     results = {}
+    detailed_results = []
 
     for val in param_values:
         fold_accs = []
+        fold_train_accs = []
         for i in range(k):
             # 2. Assign Train vs Validation folds
             x_val, y_val = folds_X[i], folds_y[i]
@@ -200,11 +203,34 @@ def run_simple_cv(X, y, model_type, param_values, k=5):
                 model = model_type(learning_rate=val)
 
             model.fit(x_train, y_train)
-            acc = accuracy_score(y_val, model.predict(x_val))
+            y_train_pred = model.predict(x_train)
+            y_val_pred = model.predict(x_val)
+
+            train_acc = accuracy_score(y_train, y_train_pred)
+            acc = accuracy_score(y_val, y_val_pred)
+
+            fold_train_accs.append(train_acc)
             fold_accs.append(acc)
             
-        results[val] = np.mean(fold_accs)
-        print(f"Testing {val}: Avg Accuracy = {results[val]:.4f}")
+        results[val] = {
+            "train_accuracy": float(np.mean(fold_train_accs)),
+            "val_accuracy": float(np.mean(fold_accs)),
+        }
+        detailed_results.append({
+            "param": val,
+            "train_accuracy": results[val]["train_accuracy"],
+            "val_accuracy": results[val]["val_accuracy"],
+        })
+        if verbose:
+            print(
+                f"Testing {val}: Train Accuracy = {results[val]['train_accuracy']:.4f}, "
+                f"Val Accuracy = {results[val]['val_accuracy']:.4f}"
+            )
 
-    best_val = max(results, key=results.get)
-    return best_val, results[best_val]
+    best_val = max(results, key=lambda value: results[value]["val_accuracy"])
+    best_accuracy = results[best_val]["val_accuracy"]
+
+    if return_details:
+        return best_val, best_accuracy, detailed_results
+
+    return best_val, best_accuracy
