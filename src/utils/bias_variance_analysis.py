@@ -1,21 +1,15 @@
 """Generic bias-variance and model-complexity analysis utilities.
-
 The functions in this module work with any classifier that exposes:
-
 - ``fit(X, y)``
 - ``predict(X)``
-
 Use a model factory so each experiment gets a fresh model instance.
 """
-
 import numpy as np
 import pandas as pd
-
 
 def accuracy_metric(y_true, y_pred):
     """Default classification metric."""
     return float(np.mean(np.asarray(y_true) == np.asarray(y_pred)))
-
 
 def make_train_subset_indices(y, train_size, seed=42, stratified=True):
     """Create subset indices for a requested train size.
@@ -62,13 +56,11 @@ def make_train_subset_indices(y, train_size, seed=42, stratified=True):
     rng.shuffle(selected)
     return selected
 
-
 def fit_model(model, X_train, y_train, fit_kwargs=None):
     """Fit a model and return it, regardless of whether fit returns self."""
     fit_kwargs = fit_kwargs or {}
     fitted = model.fit(X_train, y_train, **fit_kwargs)
     return model if fitted is None else fitted
-
 
 def evaluate_model(
     model,
@@ -83,7 +75,6 @@ def evaluate_model(
     y_eval = transform_y_fn(y) if transform_y_fn is not None else y
     y_pred = model.predict(X, **predict_kwargs)
     return metric_fn(y_eval, y_pred)
-
 
 def learning_curve(
     model_factory,
@@ -170,7 +161,6 @@ def learning_curve(
 
     return pd.DataFrame(rows)
 
-
 def complexity_curve(
     model_factory,
     param_grid,
@@ -226,7 +216,6 @@ def complexity_curve(
         rows.append(row)
 
     return pd.DataFrame(rows)
-
 
 def summarize_bias_variance(
     results,

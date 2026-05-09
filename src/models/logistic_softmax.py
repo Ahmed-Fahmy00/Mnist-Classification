@@ -1,5 +1,6 @@
 import numpy as np
 from skimage.feature import hog
+from src.utils.mnist_features import extract_hog_features, split_data
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -27,22 +28,13 @@ def _l2_penalty(W, lambda_reg):
     return (lambda_reg / 2.0) * np.sum(W[:-1, :] ** 2)
 
 
-def _train_val_split(X, y, val_fraction, seed):
-    rng = np.random.default_rng(seed)
-    idx = rng.permutation(X.shape[0])
-    cut = int(X.shape[0] * (1 - val_fraction))
-    return X[idx[:cut]], y[idx[:cut]], X[idx[cut:]], y[idx[cut:]]
-
-
-def _hog_features(x, orientations, pixels_per_cell, cells_per_block):
-    return np.array([
-        hog(img,
-            orientations=orientations,
-            pixels_per_cell=pixels_per_cell,
-            cells_per_block=cells_per_block)
-        for img in x
-    ])
-
+def _hog_features(X, orientations, pixels_per_cell, cells_per_block):
+    return extract_hog_features(
+        X,
+        pixels_per_cell=pixels_per_cell,
+        cells_per_block=cells_per_block,
+        orientations=orientations,
+    )
 
 # ── main class ────────────────────────────────────────────────────────────────
 
@@ -257,3 +249,4 @@ class SoftmaxClassifier:
     def _check_fitted(self):
         if not self.is_fitted_:
             raise RuntimeError("Call fit() before predict() / evaluate().")
+        
